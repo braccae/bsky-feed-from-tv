@@ -6,19 +6,23 @@ Official overview (read it first): https://github.com/bluesky-social/feed-genera
 
 ## Getting Started
 
-We've set up this simple server with SQLite to store and query data. Feel free to switch this out for whichever database you prefer.
+We've set up this server with libSQL to store and query data. This supports local database files as well as remote/embedded replicas using Turso.
 
-Next, you will need to do two things:
+Next, you will need to do three things:
 
 1. Implement filtering logic in `server/data_filter.py`.
-2. Copy `.env.example` to `.env`
+2. Copy `.env.example` to `.env` and fill in your settings.
 3. Optionally implement custom feed generation logic in `server/algos`.
 
 We've taken care of setting this server up with a did:web. However, you're free to switch this out for did:plc if you like - you may want to if you expect this Feed Generator to be long-standing and possibly migrating domains.
 
 ## Publishing your feed
 
-To publish your feed, simply run `python publish_feed.py`.
+To publish your feed, simply run:
+
+```shell
+uv run publish
+```
 
 To update your feed's display data (name, avatar, description, etc.), just update the relevant variables in `.env` and re-run the script.
 
@@ -26,38 +30,35 @@ After successfully running the script, you should be able to see your feed from 
 
 ## Running the Server
 
-Install Python 3.7+.
+This project requires Python 3.14+ and is configured to use the `uv` toolchain for dependency management.
 
-Run `setupvenv.sh` to setup a virtual environment and install the dependencies:
+### 1. Synchronize Dependencies
 
-```shell
-./setupvenv.sh
-```
-
-**Note**: To get value for `FEED_URI` you need to publish the feed first
-
-To run a development Flask server:
+Run `uv sync` to setup a virtual environment and install the dependencies:
 
 ```shell
-flask run
+uv sync
 ```
 
-**Warning** The Flask development server is not designed for production use. In production, you should use production WSGI server such as [`waitress`](https://flask.palletsprojects.com/en/stable/deploying/waitress/) behind a reverse proxy such as NGINX instead.
+**Note**: To get a value for `FEED_URI`, you need to publish the feed first.
+
+### 2. Start the Development Server
+
+To run the development Flask server:
 
 ```shell
-pip install waitress
-waitress-serve --listen=127.0.0.1:8080 server.app:app
+uv run dev
 ```
 
-To run a development server with debugging:
+### 3. Start the Production Server
+
+To run the production-grade Gunicorn WSGI server:
 
 ```shell
-flask --debug run
+uv run prod
 ```
 
-**Note**: Duplication of data stream instances in debug mode is fine.
-
-**Warning**: If you want to run server in many workers, you should run Data Stream (Firehose) separately.
+**Warning**: If you want to run the server with many workers, you should run the Data Stream (Firehose) separately.
 
 ### Endpoints
 

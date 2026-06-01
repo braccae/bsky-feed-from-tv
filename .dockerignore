@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.idea
+.vscode
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+feed_database.db
+*.egg-info
+build
+dist

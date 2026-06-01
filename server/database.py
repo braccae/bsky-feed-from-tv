@@ -1,8 +1,35 @@
 from datetime import datetime
 
+import os
 import peewee
+import libsql
 
-db = peewee.SqliteDatabase('feed_database.db')
+class LibSQLDatabase(peewee.SqliteDatabase):
+    def _connect(self):
+        database = self.database
+        env_url = os.environ.get("LIBSQL_URL")
+        env_token = os.environ.get("LIBSQL_AUTH_TOKEN")
+        
+        if env_url:
+            database = env_url
+            
+        auth_token = self.connect_params.get('auth_token') or env_token
+        encryption_key = self.connect_params.get('encryption_key')
+        tls = self.connect_params.get('tls')
+        
+        connect_args = {}
+        if auth_token:
+            connect_args['auth_token'] = auth_token
+        if encryption_key:
+            connect_args['encryption_key'] = encryption_key
+        if tls is not None:
+            connect_args['tls'] = tls
+            
+        return libsql.connect(database, **connect_args)
+
+db_path = os.environ.get("LIBSQL_URL") or 'feed_database.db'
+db = LibSQLDatabase(db_path)
+
 
 
 class BaseModel(peewee.Model):
