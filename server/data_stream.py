@@ -99,6 +99,25 @@ async def _run_async(name, operations_callback, stream_stop_event=None):
                         record_dict = commit.get('record', {})
                         record_cls = _NSID_TO_RECORD_TYPE[collection]
 
+                        # Sanitize embed field to prevent Pydantic validation errors on custom/external embed types
+                        if 'embed' in record_dict and isinstance(record_dict['embed'], dict):
+                            embed_type = record_dict['embed'].get('$type')
+                            allowed_embed_types = {
+                                'app.bsky.embed.images',
+                                'app.bsky.embed.images#main',
+                                'app.bsky.embed.video',
+                                'app.bsky.embed.video#main',
+                                'app.bsky.embed.external',
+                                'app.bsky.embed.external#main',
+                                'app.bsky.embed.record',
+                                'app.bsky.embed.record#main',
+                                'app.bsky.embed.recordWithMedia',
+                                'app.bsky.embed.recordWithMedia#main'
+                            }
+                            if embed_type not in allowed_embed_types:
+                                logger.debug(f"Ignoring unsupported embed type '{embed_type}' in record to prevent validation error")
+                                record_dict['embed'] = None
+
                         try:
                             # Direct Pydantic model parsing
                             record = record_cls.Record(**record_dict)
