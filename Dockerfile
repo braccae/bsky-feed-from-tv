@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
+    cmake \
     pkg-config \
     libssl-dev \
  && rm -rf /var/lib/apt/lists/*
