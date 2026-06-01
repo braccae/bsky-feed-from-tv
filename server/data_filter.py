@@ -118,30 +118,36 @@ def operations_callback(ops: defaultdict) -> None:
             posts_to_create.append(post_dict)
 
     posts_to_delete = ops[models.ids.AppBskyFeedPost]['deleted']
-    if posts_to_delete:
-        post_uris_to_delete = [post['uri'] for post in posts_to_delete]
-        Post.delete().where(Post.uri.in_(post_uris_to_delete)).execute()
-        logger.debug(f'Deleted from feed: {len(post_uris_to_delete)}')
 
-    if posts_to_create:
-        with db.atomic():
-            for post_dict in posts_to_create:
-                Post.create(**post_dict)
-        logger.debug(f'Added to feed: {len(posts_to_create)}')
+    if posts_to_delete or posts_to_create:
+        try:
+            with db.atomic():
+                if posts_to_delete:
+                    post_uris_to_delete = [post['uri'] for post in posts_to_delete]
+                    Post.delete().where(Post.uri.in_(post_uris_to_delete)).execute()
+                    logger.debug(f'Deleted from feed: {len(post_uris_to_delete)}')
 
-        if config.MAX_POSTS_COUNT:
-            try:
-                total_posts = Post.select().count()
-                if total_posts > config.MAX_POSTS_COUNT:
-                    excess = total_posts - config.MAX_POSTS_COUNT
-                    oldest_posts = (Post
-                                    .select(Post.id)
-                                    .order_by(Post.indexed_at.asc(), Post.id.asc())
-                                    .limit(excess))
-                    ids_to_delete = [p.id for p in oldest_posts]
-                    if ids_to_delete:
-                        Post.delete().where(Post.id.in_(ids_to_delete)).execute()
-                        logger.info(f"Pruned {len(ids_to_delete)} oldest posts to maintain MAX_POSTS_COUNT limit of {config.MAX_POSTS_COUNT}")
-            except Exception as e:
-                logger.error(f"Failed to prune old posts: {e}")
+                if posts_to_create:
+                    for post_dict in posts_to_create:
+                        Post.create(**post_dict)
+                    logger.debug(f'Added to feed: {len(posts_to_create)}')
+        except Exception as e:
+            logger.error(f"Database transaction error: {e}")
+
+    if posts_to_create and config.MAX_POSTS_COUNT:
+        try:
+            total_posts = Post.select().count()
+            if total_posts > config.MAX_POSTS_COUNT:
+                excess = total_posts - config.MAX_POSTS_COUNT
+                oldest_posts = (Post
+                                .select(Post.id)
+                                .order_by(Post.indexed_at.asc(), Post.id.asc())
+                                .limit(excess))
+                ids_to_delete = [p.id for p in oldest_posts]
+                if ids_to_delete:
+                    Post.delete().where(Post.id.in_(ids_to_delete)).execute()
+                    logger.info(f"Pruned {len(ids_to_delete)} oldest posts to maintain MAX_POSTS_COUNT limit of {config.MAX_POSTS_COUNT}")
+        except Exception as e:
+            logger.error(f"Failed to prune old posts: {e}")
+
 
