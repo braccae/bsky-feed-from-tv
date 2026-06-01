@@ -25,7 +25,7 @@ class LibSQLDatabase(peewee.SqliteDatabase):
         if tls is not None:
             connect_args['tls'] = tls
             
-        return libsql.connect(database, **connect_args)
+        return libsql.connect(database, isolation_level=None, **connect_args)
 
 db_path = os.environ.get("LIBSQL_URL") or 'feed_database.db'
 db = LibSQLDatabase(db_path)
