@@ -28,6 +28,13 @@ class LibSQLDatabase(peewee.SqliteDatabase):
         return libsql.connect(database, isolation_level=None, **connect_args)
 
 db_path = os.environ.get("LIBSQL_URL") or 'data/feed_database.db'
+
+# Automatically create the directory for the database if it is a local path
+if db_path and not (db_path.startswith("libsql://") or db_path.startswith("http://") or db_path.startswith("https://") or db_path == ":memory:"):
+    dir_name = os.path.dirname(db_path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
 db = LibSQLDatabase(db_path)
 
 
