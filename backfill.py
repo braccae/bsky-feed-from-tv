@@ -196,12 +196,19 @@ def main():
     print("=" * 60)
 
     # Set up client (authentication is optional for searchPosts if using the public API endpoint)
+    client = None
     if HANDLE and PASSWORD:
-        client = Client()
-        print(f"\n🔑 Logging in as {HANDLE}...")
-        client.login(HANDLE, PASSWORD)
-        print("   ✅ Authenticated successfully.")
-    else:
+        try:
+            client = Client()
+            print(f"\n🔑 Logging in as {HANDLE}...")
+            client.login(HANDLE, PASSWORD)
+            print("   ✅ Authenticated successfully.")
+        except Exception as e:
+            print(f"  ⚠️  Login failed: {e}")
+            print("     Falling back to unauthenticated public client...")
+            client = None
+
+    if not client:
         client = Client(base_url="https://api.bsky.app")
         print("\n🔓 Running unauthenticated using api.bsky.app endpoint.")
         print("   No login required.")
