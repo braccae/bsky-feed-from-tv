@@ -62,6 +62,7 @@ dependencies = [
     { name = "libsql" },
     { name = "peewee" },
     { name = "python-dotenv" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -72,6 +73,7 @@ requires-dist = [
     { name = "libsql", specifier = ">=0.0.3" },
     { name = "peewee", specifier = ">=3.16.2" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "websockets", specifier = ">=13.1" },
 ]
 
 [[package]]

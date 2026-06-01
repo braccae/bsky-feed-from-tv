@@ -11,6 +11,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "libsql>=0.0.3",
     "gunicorn>=20.1.0",
+    "websockets>=13.1",
 ]
 
 [project.scripts]

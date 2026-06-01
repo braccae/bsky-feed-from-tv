@@ -40,3 +40,6 @@ def _get_bool_env_var(value: str) -> bool:
 
 IGNORE_ARCHIVED_POSTS = _get_bool_env_var(os.environ.get('IGNORE_ARCHIVED_POSTS'))
 IGNORE_REPLY_POSTS = _get_bool_env_var(os.environ.get('IGNORE_REPLY_POSTS'))
+
+JETSTREAM_URL = os.environ.get('JETSTREAM_URL', 'wss://jetstream1.us-east.bsky.network/subscribe')
+
