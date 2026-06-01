@@ -162,18 +162,28 @@ def backfill_tag(client: Client, tag: str, existing_uris: set[str]) -> list[dict
             if not should_include_post(post_view, post_hashtags):
                 continue
 
-            # Build post dict
+            # Build post dict with original creation time as indexed_at
             reply_root = reply_parent = None
             record = post_view.record
             if hasattr(record, "reply") and record.reply:
                 reply_root = record.reply.root.uri if hasattr(record.reply, "root") else None
                 reply_parent = record.reply.parent.uri if hasattr(record.reply, "parent") else None
 
+            # Parse created_at to use as indexed_at
+            indexed_at_val = datetime.utcnow()
+            if hasattr(record, "created_at") and record.created_at:
+                try:
+                    dt = datetime.fromisoformat(record.created_at.replace("Z", "+00:00"))
+                    indexed_at_val = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                except Exception:
+                    pass
+
             post_dict = {
                 "uri": uri,
                 "cid": cid,
                 "reply_parent": reply_parent,
                 "reply_root": reply_root,
+                "indexed_at": indexed_at_val,
             }
             posts_to_insert.append(post_dict)
             existing_uris.add(uri)  # Track for cross-tag dedup
@@ -224,26 +234,29 @@ def main():
         all_posts.extend(tag_posts)
 
     if not all_posts:
-        print("\n✨ No new posts found to backfill. Database is up to date!")
-        return
+        print("\n✨ No new posts found to backfill.")
+    else:
+        # Sort grabbed posts chronologically with the newest posts first
+        all_posts.sort(key=lambda p: p["indexed_at"], reverse=True)
 
-    # Bulk insert into database
-    print(f"\n💾 Inserting {len(all_posts)} new posts into the database...")
-    inserted = 0
-    try:
-        with db.atomic():
-            # Insert in batches of 100
-            for i in range(0, len(all_posts), 100):
-                batch = all_posts[i : i + 100]
-                for post_dict in batch:
-                    Post.create(**post_dict)
-                    inserted += 1
-    except Exception as e:
-        print(f"  ⚠️  Database error after inserting {inserted} posts: {e}")
+        # Bulk insert into database
+        print(f"\n💾 Inserting {len(all_posts)} new posts into the database...")
+        inserted = 0
+        try:
+            with db.atomic():
+                # Insert in batches of 100
+                for i in range(0, len(all_posts), 100):
+                    batch = all_posts[i : i + 100]
+                    for post_dict in batch:
+                        Post.create(**post_dict)
+                        inserted += 1
+        except Exception as e:
+            print(f"  ⚠️  Database error after inserting {inserted} posts: {e}")
 
     total_posts = Post.select().count()
-    print(f"\n✅ Backfill complete!")
-    print(f"   • Inserted: {inserted} new posts")
+    print(f"\n✅ Backfill completed!")
+    if all_posts:
+        print(f"   • Inserted: {inserted} new posts")
     print(f"   • Total posts in database: {total_posts}")
 
     # Prune if MAX_POSTS_COUNT is set
@@ -266,6 +279,68 @@ def main():
         if ids_to_delete:
             Post.delete().where(Post.id.in_(ids_to_delete)).execute()
             print(f"   ✅ Pruned {len(ids_to_delete)} posts.")
+
+    # Retroactively sort all posts in the database
+    retroactive_sort(client)
+
+
+def retroactive_sort(client: Client):
+    """
+    Fetch actual creation times for all posts currently in the database
+    and update their indexed_at values retroactively.
+    """
+    print("\n🔄 Starting retroactive database sorting pass...")
+
+    # Select all posts in the database
+    all_db_posts = list(Post.select())
+    if not all_db_posts:
+        print("   Database is empty. Nothing to sort.")
+        return
+
+    print(f"   Hydrating actual timestamps for {len(all_db_posts)} posts from Bluesky API...")
+
+    # Process in batches of 25 (the API limit for get_posts)
+    batch_size = 25
+    updated_count = 0
+
+    for i in range(0, len(all_db_posts), batch_size):
+        batch = all_db_posts[i : i + batch_size]
+        uris = [post.uri for post in batch]
+
+        try:
+            response = client.app.bsky.feed.get_posts(params={"uris": uris})
+            if response and response.posts:
+                # Map URI to its parsed created_at timestamp
+                uri_to_timestamp = {}
+                for post_view in response.posts:
+                    record = post_view.record
+                    if hasattr(record, "created_at") and record.created_at:
+                        try:
+                            dt = datetime.fromisoformat(record.created_at.replace("Z", "+00:00"))
+                            naive_dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                            uri_to_timestamp[post_view.uri] = naive_dt
+                        except Exception:
+                            pass
+
+                # Update in a transaction
+                with db.atomic():
+                    for post in batch:
+                        if post.uri in uri_to_timestamp:
+                            post.indexed_at = uri_to_timestamp[post.uri]
+                            post.save()
+                            updated_count += 1
+
+        except Exception as e:
+            print(f"  ⚠️  Error updating batch starting at index {i}: {e}")
+
+        # Limit console output spam to every 250 posts
+        if (i + batch_size) % 250 == 0 or (i + batch_size) >= len(all_db_posts):
+            print(f"   Progress: {min(i + batch_size, len(all_db_posts))}/{len(all_db_posts)} posts processed...")
+        
+        # Polite API delay
+        time.sleep(0.1)
+
+    print(f"   ✅ Retroactive sort complete. Updated {updated_count} posts with their original timestamps.")
 
 
 if __name__ == "__main__":
