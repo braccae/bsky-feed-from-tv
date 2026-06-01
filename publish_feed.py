@@ -77,20 +77,6 @@ def main():
     if AVATAR_PATH:
         with open(AVATAR_PATH, 'rb') as f:
             avatar_data = f.read()
-
-        # Bluesky only supports png or jpeg avatars. Convert other formats (like webp) to png.
-        from io import BytesIO
-        from PIL import Image
-
-        try:
-            with Image.open(BytesIO(avatar_data)) as img:
-                if img.format not in ('PNG', 'JPEG'):
-                    out_buffer = BytesIO()
-                    img.save(out_buffer, format='PNG')
-                    avatar_data = out_buffer.getvalue()
-        except Exception as e:
-            print(f"Warning: Could not process or convert avatar image format: {e}. Attempting upload as-is.")
-
         avatar_blob = client.upload_blob(avatar_data).blob
 
     response = client.com.atproto.repo.put_record(models.ComAtprotoRepoPutRecord.Data(

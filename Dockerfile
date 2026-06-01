@@ -7,6 +7,15 @@ ENV UV_PYTHON_DOWNLOADS=0
 
 WORKDIR /app
 
+# Install build dependencies required for compiling native extensions (like Rust-based libsql)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cargo \
+    rustc \
+    pkg-config \
+    libssl-dev \
+ && rm -rf /var/lib/apt/lists/*
+
 # Mount caches for uv to optimize dependency resolution and downloads
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
