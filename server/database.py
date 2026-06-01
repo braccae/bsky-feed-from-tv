@@ -27,7 +27,7 @@ class LibSQLDatabase(peewee.SqliteDatabase):
             
         return libsql.connect(database, isolation_level=None, **connect_args)
 
-db_path = os.environ.get("LIBSQL_URL") or 'feed_database.db'
+db_path = os.environ.get("LIBSQL_URL") or 'data/feed_database.db'
 db = LibSQLDatabase(db_path)
 
 
