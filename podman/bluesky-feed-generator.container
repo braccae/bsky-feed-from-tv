@@ -3,7 +3,7 @@ Description=Bluesky Feed Generator Service
 After=network-online.target
 
 [Container]
-Image=ghcr.io/braccae/bluesky-feed-generator:latest
+Image=ghcr.io/braccae/bsky-feed-from-tv:latest
 
 PublishPort=8000:8000
 

@@ -8,7 +8,13 @@ from server.logger import logger
 load_dotenv()
 
 SERVICE_DID = os.environ.get('SERVICE_DID')
+if SERVICE_DID:
+    SERVICE_DID = SERVICE_DID.strip("'\"")
+
 HOSTNAME = os.environ.get('HOSTNAME')
+if HOSTNAME:
+    HOSTNAME = HOSTNAME.strip("'\"")
+
 FLASK_RUN_FROM_CLI = os.environ.get('FLASK_RUN_FROM_CLI')
 
 if FLASK_RUN_FROM_CLI:
@@ -22,6 +28,9 @@ if not SERVICE_DID:
 
 
 FEED_URI = os.environ.get('FEED_URI')
+if FEED_URI:
+    FEED_URI = FEED_URI.strip("'\"")
+
 if not FEED_URI:
     raise RuntimeError('Publish your feed first (run publish_feed.py) to obtain Feed URI. '
                        'Set this URI to "FEED_URI" environment variable.')
@@ -31,7 +40,7 @@ def _get_bool_env_var(value: str) -> bool:
     if value is None:
         return False
 
-    normalized_value = value.strip().lower()
+    normalized_value = value.strip().strip("'\"").lower()
     if normalized_value in {'1', 'true', 't', 'yes', 'y'}:
         return True
 
@@ -42,13 +51,14 @@ IGNORE_ARCHIVED_POSTS = _get_bool_env_var(os.environ.get('IGNORE_ARCHIVED_POSTS'
 IGNORE_REPLY_POSTS = _get_bool_env_var(os.environ.get('IGNORE_REPLY_POSTS'))
 
 JETSTREAM_URL = os.environ.get('JETSTREAM_URL', 'wss://jetstream1.us-east.bsky.network/subscribe')
+if JETSTREAM_URL:
+    JETSTREAM_URL = JETSTREAM_URL.strip("'\"")
 
 MAX_POSTS_COUNT = os.environ.get('MAX_POSTS_COUNT')
 if MAX_POSTS_COUNT:
+    MAX_POSTS_COUNT = MAX_POSTS_COUNT.strip("'\"")
     try:
         MAX_POSTS_COUNT = int(MAX_POSTS_COUNT)
     except ValueError:
         logger.warning(f"Invalid MAX_POSTS_COUNT value: {MAX_POSTS_COUNT}. Using no limit.")
         MAX_POSTS_COUNT = None
-
-
