@@ -18,7 +18,6 @@ def run_prod():
     try:
         subprocess.run([
             "gunicorn", "server.app:app",
-            "--bind", f"0.0.0.0:{port}",
             "--bind", f"[::]:{port}",
         ], check=True)
     except KeyboardInterrupt:
