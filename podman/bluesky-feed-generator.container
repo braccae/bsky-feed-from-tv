@@ -1,0 +1,21 @@
+[Unit]
+Description=Bluesky Feed Generator Service
+After=network-online.target
+
+[Container]
+Image=ghcr.io/braccae/bluesky-feed-generator:latest
+
+PublishPort=8000:8000
+
+EnvironmentFile=%h/appdata/bluesky-feed-generator/env
+
+Volume=%h/appdata/bluesky-feed-generator/data:/app/data:Z
+
+AutoUpdate=registry
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

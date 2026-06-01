@@ -66,6 +66,71 @@ uv run prod
 - `/xrpc/app.bsky.feed.describeFeedGenerator`
 - `/xrpc/app.bsky.feed.getFeedSkeleton`
 
+## Container Deployment
+
+This project includes configuration for automated container builds and rootless deployment using Podman Quadlets.
+
+### 1. GitHub Actions (CI/CD)
+
+The GitHub workflow `.github/workflows/build-image.yml` builds and pushes the container image to the GitHub Container Registry (GHCR) at `ghcr.io/<username>/bluesky-feed-generator:latest`.
+
+- **Triggers**: It runs automatically on push to the `main` branch, when a new tag `v*` is pushed, and on any pull requests targeting `main`.
+- **Registry Permissions**: Ensure your workflow has permissions to write packages in your repository settings.
+
+### 2. Rootless Podman & Quadlet Deployment
+
+Quadlet is the modern, recommended way to run rootless Podman containers managed by systemd.
+
+#### Prerequisites
+
+1. Enable lingering for your user so that the systemd services can start on system boot without you logging in:
+   ```shell
+   loginctl enable-linger $USER
+   ```
+2. Create the configuration and data persistence directories:
+   ```shell
+   mkdir -p ~/.config/bluesky-feed-generator
+   mkdir -p ~/.local/share/bluesky-feed-generator/data
+   ```
+3. Copy your `.env` configuration file to `~/.config/bluesky-feed-generator/env`:
+   ```shell
+   cp .env ~/.config/bluesky-feed-generator/env
+   ```
+   *Make sure you set `LIBSQL_URL=/app/data/feed_database.db` inside this environment file so that the SQLite/LibSQL database is stored on the persistent host mount.*
+
+#### Installation
+
+1. Copy the Quadlet container file to your user's systemd directory:
+   ```shell
+   mkdir -p ~/.config/containers/systemd
+   cp podman/bluesky-feed-generator.container ~/.config/containers/systemd/
+   ```
+   *Update the `Image=` option inside the copied file to point to your specific GHCR repository if needed.*
+
+2. Reload the systemd daemon to generate the transient service files:
+   ```shell
+   systemctl --user daemon-reload
+   ```
+
+3. Start and enable the service:
+   ```shell
+   systemctl --user enable --now bluesky-feed-generator.service
+   ```
+
+4. Check the service status and logs:
+   ```shell
+   systemctl --user status bluesky-feed-generator.service
+   journalctl --user -xeu bluesky-feed-generator.service
+   ```
+
+#### Automatic Updates
+
+Because `AutoUpdate=registry` is set in the container file, you can configure Podman to check for newer images on GHCR and automatically restart the service:
+```shell
+systemctl --user enable --now podman-auto-update.timer
+```
+
 ## License
 
 MIT
+
