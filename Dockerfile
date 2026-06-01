@@ -10,11 +10,15 @@ WORKDIR /app
 # Install build dependencies required for compiling native extensions (like Rust-based libsql)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    cargo \
-    rustc \
+    curl \
+    ca-certificates \
     pkg-config \
     libssl-dev \
  && rm -rf /var/lib/apt/lists/*
+
+# Install the latest stable Rust toolchain to support the Rust 2024 edition
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Mount caches for uv to optimize dependency resolution and downloads
 RUN --mount=type=cache,target=/root/.cache/uv \
