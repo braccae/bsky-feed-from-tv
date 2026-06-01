@@ -23,7 +23,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from atproto import Client
@@ -174,7 +174,7 @@ def backfill_tag(client: Client, tag: str, existing_uris: set[str]) -> list[dict
             if hasattr(record, "created_at") and record.created_at:
                 try:
                     dt = datetime.fromisoformat(record.created_at.replace("Z", "+00:00"))
-                    indexed_at_val = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                    indexed_at_val = dt.astimezone(timezone.utc).replace(tzinfo=None)
                 except Exception:
                     pass
 
@@ -317,7 +317,7 @@ def retroactive_sort(client: Client):
                     if hasattr(record, "created_at") and record.created_at:
                         try:
                             dt = datetime.fromisoformat(record.created_at.replace("Z", "+00:00"))
-                            naive_dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                            naive_dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                             uri_to_timestamp[post_view.uri] = naive_dt
                         except Exception:
                             pass
