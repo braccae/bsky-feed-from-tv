@@ -43,3 +43,12 @@ IGNORE_REPLY_POSTS = _get_bool_env_var(os.environ.get('IGNORE_REPLY_POSTS'))
 
 JETSTREAM_URL = os.environ.get('JETSTREAM_URL', 'wss://jetstream1.us-east.bsky.network/subscribe')
 
+MAX_POSTS_COUNT = os.environ.get('MAX_POSTS_COUNT')
+if MAX_POSTS_COUNT:
+    try:
+        MAX_POSTS_COUNT = int(MAX_POSTS_COUNT)
+    except ValueError:
+        logger.warning(f"Invalid MAX_POSTS_COUNT value: {MAX_POSTS_COUNT}. Using no limit.")
+        MAX_POSTS_COUNT = None
+
+

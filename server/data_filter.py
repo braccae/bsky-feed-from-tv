@@ -1,4 +1,5 @@
 import datetime
+import re
 
 from collections import defaultdict
 
@@ -7,6 +8,13 @@ from atproto import models
 from server import config
 from server.logger import logger
 from server.database import db, Post
+
+
+# Compiled regex pattern to verify TV show context when #from is the only matched hashtag
+TV_CONTEXT_PATTERN = re.compile(
+    r'\b(season|episode|episodes|boyd|jade|victor|tabitha|talisman|talismans|colony\s+house|anghkooey)\b',
+    re.IGNORECASE
+)
 
 
 def is_archive_post(record: 'models.AppBskyFeedPost.Record') -> bool:
@@ -70,8 +78,32 @@ def operations_callback(ops: defaultdict) -> None:
         if should_ignore_post(created_post):
             continue
 
-        # only python-related posts
-        if 'python' in record.text.lower():
+        # only posts containing hashtags #from, #fromville, #fromseries, #fromily, and #frommgm
+        post_hashtags = set()
+        if record.text:
+            for match in re.findall(r'#\w+', record.text):
+                post_hashtags.add(match.lower())
+
+        if record.facets:
+            for facet in record.facets:
+                if facet.features:
+                    for feature in facet.features:
+                        if hasattr(feature, 'tag') and feature.tag:
+                            tag_val = feature.tag.lower()
+                            if tag_val.startswith('#'):
+                                post_hashtags.add(tag_val)
+                            else:
+                                post_hashtags.add(f'#{tag_val}')
+
+        allowed_tags = {'#from', '#fromville', '#fromseries', '#fromily', '#frommgm'}
+        matched_tags = post_hashtags.intersection(allowed_tags)
+        
+        if matched_tags:
+            # If #from is the only matched hashtag, require specific TV show context keywords in the text
+            if matched_tags == {'#from'}:
+                if not (record.text and TV_CONTEXT_PATTERN.search(record.text)):
+                    continue
+
             reply_root = reply_parent = None
             if record.reply:
                 reply_root = record.reply.root.uri
@@ -96,3 +128,20 @@ def operations_callback(ops: defaultdict) -> None:
             for post_dict in posts_to_create:
                 Post.create(**post_dict)
         logger.debug(f'Added to feed: {len(posts_to_create)}')
+
+        if config.MAX_POSTS_COUNT:
+            try:
+                total_posts = Post.select().count()
+                if total_posts > config.MAX_POSTS_COUNT:
+                    excess = total_posts - config.MAX_POSTS_COUNT
+                    oldest_posts = (Post
+                                    .select(Post.id)
+                                    .order_by(Post.indexed_at.asc(), Post.id.asc())
+                                    .limit(excess))
+                    ids_to_delete = [p.id for p in oldest_posts]
+                    if ids_to_delete:
+                        Post.delete().where(Post.id.in_(ids_to_delete)).execute()
+                        logger.info(f"Pruned {len(ids_to_delete)} oldest posts to maintain MAX_POSTS_COUNT limit of {config.MAX_POSTS_COUNT}")
+            except Exception as e:
+                logger.error(f"Failed to prune old posts: {e}")
+

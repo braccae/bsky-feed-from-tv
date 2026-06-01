@@ -37,12 +37,22 @@ class BaseModel(peewee.Model):
         database = db
 
 
+class LibSQLDateTimeField(peewee.DateTimeField):
+    def db_value(self, value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.strftime('%Y-%m-%d %H:%M:%S.%f')
+        return super().db_value(value)
+
+
 class Post(BaseModel):
     uri = peewee.CharField(index=True)
     cid = peewee.CharField()
     reply_parent = peewee.CharField(null=True, default=None)
     reply_root = peewee.CharField(null=True, default=None)
-    indexed_at = peewee.DateTimeField(default=datetime.utcnow)
+    indexed_at = LibSQLDateTimeField(default=datetime.utcnow)
+
 
 
 class SubscriptionState(BaseModel):
