@@ -17,6 +17,89 @@ _INTERESTED_RECORDS = {
 }
 
 
+def _sanitize_record_dict(d: dict) -> dict:
+    if not isinstance(d, dict):
+        return d
+
+    # 1. Sanitize embed field to prevent Pydantic validation errors on custom/external embed types
+    if 'embed' in d and isinstance(d['embed'], dict):
+        embed_type = d['embed'].get('$type') or d['embed'].get('py_type')
+        allowed_embed_types = {
+            'app.bsky.embed.images',
+            'app.bsky.embed.images#main',
+            'app.bsky.embed.video',
+            'app.bsky.embed.video#main',
+            'app.bsky.embed.external',
+            'app.bsky.embed.external#main',
+            'app.bsky.embed.record',
+            'app.bsky.embed.record#main',
+            'app.bsky.embed.recordWithMedia',
+            'app.bsky.embed.recordWithMedia#main'
+        }
+        if embed_type not in allowed_embed_types:
+            logger.debug(f"Ignoring unsupported embed type '{embed_type}' in record to prevent validation error")
+            d['embed'] = None
+        else:
+            # Strip #main suffix from embed $type if present
+            if isinstance(embed_type, str) and embed_type.endswith('#main'):
+                clean_type = embed_type[:-5]
+                if '$type' in d['embed']:
+                    d['embed']['$type'] = clean_type
+                if 'py_type' in d['embed']:
+                    d['embed']['py_type'] = clean_type
+
+    # 2. Sanitize facets field to keep only supported features and normalize hashtags
+    if 'facets' in d and isinstance(d['facets'], list):
+        clean_facets = []
+        for facet in d['facets']:
+            if not isinstance(facet, dict):
+                continue
+            if 'features' in facet and isinstance(facet['features'], list):
+                clean_features = []
+                for feature in facet['features']:
+                    if not isinstance(feature, dict):
+                        continue
+                    t_val = feature.get('$type') or feature.get('py_type')
+                    if not t_val:
+                        continue
+                    if t_val == 'app.bsky.richtext.facet#hashtag':
+                        t_val = 'app.bsky.richtext.facet#tag'
+                    allowed_features = {
+                        'app.bsky.richtext.facet#mention',
+                        'app.bsky.richtext.facet#link',
+                        'app.bsky.richtext.facet#tag'
+                    }
+                    if t_val in allowed_features:
+                        if '$type' in feature:
+                            feature['$type'] = t_val
+                        if 'py_type' in feature:
+                            feature['py_type'] = t_val
+                        clean_features.append(feature)
+                facet['features'] = clean_features
+            
+            # Keep facet only if it has features
+            if facet.get('features'):
+                clean_facets.append(facet)
+        d['facets'] = clean_facets
+
+    # 3. Recursively map $type to py_type and strip #main suffix from values
+    new_d = {}
+    for k, v in d.items():
+        key = 'py_type' if k == '$type' else k
+        val = v
+        if key == 'py_type' and isinstance(val, str) and val.endswith('#main'):
+            val = val[:-5]
+        new_d[key] = val
+
+    for k, v in list(new_d.items()):
+        if isinstance(v, dict):
+            new_d[k] = _sanitize_record_dict(v)
+        elif isinstance(v, list):
+            new_d[k] = [_sanitize_record_dict(item) if isinstance(item, dict) else item for item in v]
+    
+    return new_d
+
+
 async def _run_async(name, operations_callback, stream_stop_event=None):
     state = SubscriptionState.get_or_none(SubscriptionState.service == name)
 
@@ -97,24 +180,7 @@ async def _run_async(name, operations_callback, stream_stop_event=None):
                         record_dict = commit.get('record', {})
                         record_cls = _NSID_TO_RECORD_TYPE[collection]
 
-                        # Sanitize embed field to prevent Pydantic validation errors on custom/external embed types
-                        if 'embed' in record_dict and isinstance(record_dict['embed'], dict):
-                            embed_type = record_dict['embed'].get('$type')
-                            allowed_embed_types = {
-                                'app.bsky.embed.images',
-                                'app.bsky.embed.images#main',
-                                'app.bsky.embed.video',
-                                'app.bsky.embed.video#main',
-                                'app.bsky.embed.external',
-                                'app.bsky.embed.external#main',
-                                'app.bsky.embed.record',
-                                'app.bsky.embed.record#main',
-                                'app.bsky.embed.recordWithMedia',
-                                'app.bsky.embed.recordWithMedia#main'
-                            }
-                            if embed_type not in allowed_embed_types:
-                                logger.debug(f"Ignoring unsupported embed type '{embed_type}' in record to prevent validation error")
-                                record_dict['embed'] = None
+                        record_dict = _sanitize_record_dict(record_dict)
 
                         try:
                             # Direct Pydantic model parsing
